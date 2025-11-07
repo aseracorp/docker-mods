@@ -4,5 +4,5 @@
 # so it can take advantage of packages installed
 # init-mods-end depends on this script so that later init and services wait until this script exits
 
-echo "**** Setting up apprise ****"
-apprise blah blah
+echo "**** Setting up Trusted Proxy ****"
+yq -i '.http.use_x_forwarded_for = True | .http.trusted_proxies[0] = strenv(PROXY_HOSTNAME)' /config/configuration.yaml
