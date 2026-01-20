@@ -12,7 +12,16 @@ if [ -f /config/configuration.yaml ]; then
 else
     echo "**** found NO config, add initial config files + trusted proxy ****"
     wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/configuration.yaml
+fi
+if [ -f /config/automations.yaml ]; then
+    echo "**** Missing file automations.yaml, downloading... ****"
     wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/automations.yaml
+fi
+if [ -f /config/scenes.yaml ]; then
+    echo "**** Missing file scenes.yaml, downloading... ****"
     wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/scenes.yaml
+fi
+if [ -f /config/scripts.yaml ]; then
+    echo "**** Missing file scripts.yaml, downloading... ****"
     wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/scripts.yaml
 fi
