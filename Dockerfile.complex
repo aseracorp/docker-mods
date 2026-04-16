@@ -27,7 +27,7 @@ COPY root/ /root-layer/
 ## Single layer deployed image ##
 FROM scratch
 
-LABEL maintainer="username"
+LABEL maintainer="aseracorp"
 
 # Add files from buildstage
 COPY --from=buildstage /root-layer/ /

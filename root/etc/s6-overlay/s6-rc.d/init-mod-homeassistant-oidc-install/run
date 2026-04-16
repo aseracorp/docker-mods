@@ -1,0 +1,59 @@
+#!/usr/bin/with-contenv bash
+
+# This is an install script that is designed to run after init-mods-package-install
+# so it can take advantage of packages installed
+# init-mods-end depends on this script so that later init and services wait until this script exits
+
+echo "**** Setting up OIDC-Connection ****"
+
+if [[ -n "${OIDC_CLIENT_ID}" && -n "${OIDC_CLIENT_SECRET}" ]]; then    
+    echo "**** Download and Set up OpenID ****"
+    if [ ! -d "/config/custom_components/openid" ]; then    
+        git clone https://github.com/cavefire/hass-openid.git
+        mv hass-openid/custom_components/openid /config/custom_components/
+        rm -R hass-openid
+    fi
+    yq -i '.openid.client_id = strenv(OIDC_CLIENT_ID) 
+        | .openid.client_secret = strenv(OIDC_CLIENT_SECRET) 
+        | .openid.configure_url = strenv(OIDC_CONFIGURE_URL) 
+        | .openid.username_field = strenv(OIDC_USERNAME_FIELD) 
+        | .openid.scope = strenv(OIDC_SCOPE) 
+        | .openid.block_login = false
+        | .openid.openid_text = strenv(OIDC_OPENID_TEXT) 
+        | .openid.create_user = strenv(OIDC_CREATE_USER) 
+        | .openid.client_id line_comment="OIDC_CLIENT_ID"
+        | .openid.client_secret line_comment="OIDC_CLIENT_SECRET"
+        | .openid.configure_url line_comment="OIDC_CONFIGURE_URL"
+        | .openid.username_field line_comment="OIDC_USERNAME_FIELD"
+        | .openid.scope line_comment="OIDC_SCOPE"
+        | .openid.block_login line_comment="OIDC_BLOCK_LOGIN"
+        | .openid.openid_text line_comment="OIDC_OPENID_TEXT"
+        | .openid.create_user line_comment="OIDC_CREATE_USER"
+    ' /config/configuration.yaml
+    if [[ ! $(curl "${OIDC_CONFIGURE_URL}") ]]; then
+        oidc_configure_url=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*\.@https://@")
+        oidc_configure_url_2=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*\.@https://cosmos.@")
+        oidc_configure_url_3=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*(\.local)/@https://cosmos.local/@")
+        oidc_configure_url_4=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://([0-9\.]*):[0-9]*/@https://\1/@")
+        if [[ $(curl "${oidc_configure_url}") ]]; then
+            yq -i '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+                ' /config/configuration.yaml
+        elif [[ $(curl "${oidc_configure_url_2}") ]]; then
+            yq -i '.openid.configure_url = strenv(oidc_configure_url_2)
+                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+                ' /config/configuration.yaml
+        elif [[ $(curl "${oidc_configure_url_3}") ]]; then
+            yq -i '.openid.configure_url = strenv(oidc_configure_url_3)
+                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+                ' /config/configuration.yaml
+        elif [[ $(curl "${oidc_configure_url_4}") ]]; then
+            yq -i '.openid.configure_url = strenv(oidc_configure_url_4)
+                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+                ' /config/configuration.yaml
+        fi
+    else
+        yq -i '.openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+            ' /config/configuration.yaml
+    fi
+fi
