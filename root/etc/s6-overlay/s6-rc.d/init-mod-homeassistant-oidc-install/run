@@ -1,5 +1,7 @@
 #!/usr/bin/with-contenv bash
 
+### homeassistant-oidc v1.0.0 ###
+
 # This is an install script that is designed to run after init-mods-package-install
 # so it can take advantage of packages installed
 # init-mods-end depends on this script so that later init and services wait until this script exits
@@ -10,17 +12,24 @@ if [[ -n "${OIDC_CLIENT_ID}" && -n "${OIDC_CLIENT_SECRET}" ]]; then
     echo "**** Download and Set up OpenID ****"
     if [ ! -d "/config/custom_components/openid" ]; then    
         git clone https://github.com/cavefire/hass-openid.git
+        mkdir -p /config/custom_components/
         mv hass-openid/custom_components/openid /config/custom_components/
         rm -R hass-openid
     fi
-    yq -i '.openid.client_id = strenv(OIDC_CLIENT_ID) 
-        | .openid.client_secret = strenv(OIDC_CLIENT_SECRET) 
-        | .openid.configure_url = strenv(OIDC_CONFIGURE_URL) 
-        | .openid.username_field = strenv(OIDC_USERNAME_FIELD) 
-        | .openid.scope = strenv(OIDC_SCOPE) 
+    yq -i -r=false '.openid.client_id = strenv(OIDC_CLIENT_ID)
+        | .openid.client_id style="double"
+        | .openid.client_secret = strenv(OIDC_CLIENT_SECRET)
+        | .openid.client_secret style="double"
+        | .openid.configure_url = strenv(OIDC_CONFIGURE_URL)
+        | .openid.configure_url style="double"
+        | .openid.username_field = strenv(OIDC_USERNAME_FIELD)
+        | .openid.username_field style="double"
+        | .openid.scope = strenv(OIDC_SCOPE)
+        | .openid.scope style="double"
         | .openid.block_login = false
-        | .openid.openid_text = strenv(OIDC_OPENID_TEXT) 
-        | .openid.create_user = strenv(OIDC_CREATE_USER) 
+        | .openid.openid_text = strenv(OIDC_OPENID_TEXT)
+        | .openid.openid_text style="double"
+        | .openid.create_user = env(OIDC_CREATE_USER)
         | .openid.client_id line_comment="OIDC_CLIENT_ID"
         | .openid.client_secret line_comment="OIDC_CLIENT_SECRET"
         | .openid.configure_url line_comment="OIDC_CONFIGURE_URL"
@@ -29,31 +38,48 @@ if [[ -n "${OIDC_CLIENT_ID}" && -n "${OIDC_CLIENT_SECRET}" ]]; then
         | .openid.block_login line_comment="OIDC_BLOCK_LOGIN"
         | .openid.openid_text line_comment="OIDC_OPENID_TEXT"
         | .openid.create_user line_comment="OIDC_CREATE_USER"
-    ' /config/configuration.yaml
-    if [[ ! $(curl "${OIDC_CONFIGURE_URL}") ]]; then
-        oidc_configure_url=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*\.@https://@")
-        oidc_configure_url_2=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*\.@https://cosmos.@")
-        oidc_configure_url_3=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]*(\.local)/@https://cosmos.local/@")
-        oidc_configure_url_4=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://([0-9\.]*):[0-9]*/@https://\1/@")
-        if [[ $(curl "${oidc_configure_url}") ]]; then
-            yq -i '.openid.configure_url = strenv(oidc_configure_url)
-                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+     ' /config/configuration.yaml
+    echo "**** test .well-known-URL ****"
+    if [[ ! $(curl -f -m 5 "${OIDC_CONFIGURE_URL}") ]]; then
+        echo "**** not working, test other forms ****"
+        oidc_configure_url=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9]{1,63}\.@https://@")
+        oidc_configure_url_2=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://[a-zA-Z0-9-]{1,63}\.@https://cosmos\.@")
+        oidc_configure_url_3=$(echo "${OIDC_CONFIGURE_URL}" | sed -r "s@https://([0-9\.]{7,15}):[0-9]*/@https://\1/@")
+        if [ $(curl -f -m 5 "${oidc_configure_url}") ]; then
+            echo "**** reached cosmos via subdomain: remove leading subdomain ****"
+            oidc_configure_url=${oidc_configure_url} yq -i -r=false '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.configure_url style="double"
+                | .openid.block_login = env(OIDC_BLOCK_LOGIN)
                 ' /config/configuration.yaml
-        elif [[ $(curl "${oidc_configure_url_2}") ]]; then
-            yq -i '.openid.configure_url = strenv(oidc_configure_url_2)
-                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+        elif [[ $(curl -f -m 5 "${oidc_configure_url_2}") ]]; then
+            echo "**** reached cosmos via cosmos-subdomain: replace leading subdomain with cosmos. ****"
+            oidc_configure_url=${oidc_configure_url_2} yq -i -r=false '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.configure_url style="double"
+                | .openid.block_login = env(OIDC_BLOCK_LOGIN)
                 ' /config/configuration.yaml
-        elif [[ $(curl "${oidc_configure_url_3}") ]]; then
-            yq -i '.openid.configure_url = strenv(oidc_configure_url_3)
-                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+        elif [[ $(curl -f -m 5 "${oidc_configure_url_3}") ]]; then
+            echo "**** reached cosmos via IP: remove port ****"
+            oidc_configure_url=${oidc_configure_url_3} yq -i -r=false '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.configure_url style="double"
+                | .openid.block_login = env(OIDC_BLOCK_LOGIN)
+                | .openid.validate_tls = false
                 ' /config/configuration.yaml
-        elif [[ $(curl "${oidc_configure_url_4}") ]]; then
-            yq -i '.openid.configure_url = strenv(oidc_configure_url_4)
-                | .openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+        elif [[ "${OIDC_CONFIGURE_URL}" == *"https://home-assistant."* ]]; then
+            echo "**** found App-subdomain: remove leading subdomain ****"
+            oidc_configure_url=${oidc_configure_url} yq -i -r=false '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.configure_url style="double"
+                | .openid.block_login = env(OIDC_BLOCK_LOGIN)
+                ' /config/configuration.yaml
+        elif [[ "${OIDC_CONFIGURE_URL}" =~ https://[0-9\.]{7,15}\:[0-9]{4} ]]; then
+            echo "**** found cosmos App-port: remove port ****"
+            oidc_configure_url=${oidc_configure_url_3} yq -i -r=false '.openid.configure_url = strenv(oidc_configure_url)
+                | .openid.configure_url style="double"
+                | .openid.block_login = env(OIDC_BLOCK_LOGIN)
+                | .openid.validate_tls = false
                 ' /config/configuration.yaml
         fi
     else
-        yq -i '.openid.block_login = strenv(OIDC_BLOCK_LOGIN)
+        yq -i -r=false '.openid.block_login = env(OIDC_BLOCK_LOGIN)
             ' /config/configuration.yaml
     fi
-fi
+fi 
