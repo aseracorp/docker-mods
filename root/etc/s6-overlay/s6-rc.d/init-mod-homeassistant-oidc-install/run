@@ -1,6 +1,10 @@
 #!/usr/bin/with-contenv bash
 
-### homeassistant-oidc v1.0.0 ###
+### homeassistant-oidc v2.0.0 ###
+
+# Changelog: v2.0.0
+# - switch to christiangoosens version, as this one supports automatic setup (secret-less)
+# - update all keys to support new cosmos template with automatic oidc-setup (Cosmos v.0.22.30+)
 
 # This is an install script that is designed to run after init-mods-package-install
 # so it can take advantage of packages installed
@@ -19,25 +23,36 @@ if [[ -n "${OIDC_CLIENT_ID}" ]]; then
     yq -i -r=false '.auth_oidc.client_id = strenv(OIDC_CLIENT_ID)
         | .auth_oidc.client_id style="double"
         | .auth_oidc.client_id line_comment="OIDC_CLIENT_ID"
-        | .auth_oidc.discovery_url = strenv(OIDC_CONFIGURE_URL)
-        | .auth_oidc.discovery_url style="double"
-        | .auth_oidc.discovery_url line_comment="OIDC_CONFIGURE_URL"
-        | .auth_oidc.display_name = strenv(OIDC_OPENID_TEXT)
+        | .auth_oidc.display_name = strenv(OIDC_CLIENT_NAME)
         | .auth_oidc.display_name style="double"
-        | .auth_oidc.display_name line_comment="OIDC_OPENID_TEXT"
+        | .auth_oidc.display_name line_comment="OIDC_CLIENT_NAME"
+        | .auth_oidc.discovery_url = strenv(OIDC_DISCOVERY_URL)
+        | .auth_oidc.discovery_url style="double"
+        | .auth_oidc.discovery_url line_comment="OIDC_DISCOVERY_URL"
         | .auth_oidc.network.tls_verify = env(OIDC_VALIDATE_TLS)
         | .auth_oidc.network.tls_verify line_comment="OIDC_VALIDATE_TLS"
         | .auth_oidc.network.tls_verify = env(OIDC_VALIDATE_TLS)
         | .auth_oidc.network.tls_verify line_comment="OIDC_VALIDATE_TLS"
+        | .auth_oidc.features.automatic_user_linking = env(OIDC_LINK_USER)
+        | .auth_oidc.features.automatic_user_linking line_comment="OIDC_LINK_USER"
+        | .auth_oidc.features.automatic_person_creation = env(OIDC_CREATE_USER)
+        | .auth_oidc.features.automatic_person_creation line_comment="OIDC_CREATE_USER"
+        | .auth_oidc.features.default_redirect = env(OIDC_BLOCK_LOGIN)
+        | .auth_oidc.features.default_redirect line_comment="OIDC_BLOCK_LOGIN"
         | .auth_oidc.claims.username = strenv(OIDC_USERNAME_FIELD)
         | .auth_oidc.claims.username style="double"
         | .auth_oidc.claims.username line_comment="OIDC_USERNAME_FIELD"
-        | .auth_oidc.claims.display_name = strenv(OIDC_DISPLAY_NAME)
+        | .auth_oidc.claims.display_name = strenv(OIDC_DISPLAYNAME_FIELD)
         | .auth_oidc.claims.display_name style="double"
-        | .auth_oidc.claims.display_name line_comment="OIDC_DISPLAY_NAME"
-        | .auth_oidc.features.default_redirect = env(OIDC_BLOCK_LOGIN)
-        | .auth_oidc.features.default_redirect line_comment="OIDC_BLOCK_LOGIN"
-        | .auth_oidc.features.automatic_person_creation = env(OIDC_CREATE_USER)
-        | .auth_oidc.features.automatic_person_creation line_comment="OIDC_CREATE_USER"
+        | .auth_oidc.claims.display_name line_comment="OIDC_DISPLAYNAME_FIELD"
+        | .auth_oidc.claims.groups = strenv(OIDC_GROUPS_FIELD)
+        | .auth_oidc.claims.groups style="double"
+        | .auth_oidc.claims.groups line_comment="OIDC_GROUPS_FIELD"
+        | .auth_oidc.groups_scope = strenv(OIDC_GROUPS_SCOPE)
+        | .auth_oidc.groups_scope style="double"
+        | .auth_oidc.groups_scope line_comment="OIDC_GROUPS_SCOPE"
+        | .auth_oidc.roles.admin = strenv(OIDC_ADMIN_NAME)
+        | .auth_oidc.roles.admin style="double"
+        | .auth_oidc.roles.admin line_comment="OIDC_ADMIN_NAME"
      ' /config/configuration.yaml
 fi
