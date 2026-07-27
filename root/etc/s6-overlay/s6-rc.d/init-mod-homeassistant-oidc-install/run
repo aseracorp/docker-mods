@@ -8,38 +8,36 @@
 
 echo "**** Setting up OIDC-Connection ****"
 
-if [[ -n "${OIDC_CLIENT_ID}" && -n "${OIDC_CLIENT_SECRET}" ]]; then    
+if [[ -n "${OIDC_CLIENT_ID}" ]]; then
     echo "**** Download and Set up OpenID ****"
-    if [ ! -d "/config/custom_components/openid" ]; then    
-        git clone https://github.com/cavefire/hass-openid.git
+    if [ ! -d "/config/custom_components/auth_oidc" ]; then    
+        git clone https://github.com/christiaangoossens/hass-oidc-auth.git
         mkdir -p /config/custom_components/
-        mv hass-openid/custom_components/openid /config/custom_components/
-        rm -R hass-openid
+        mv hass-oidc-auth/custom_components/auth_oidc /config/custom_components/
+        rm -R hass-oidc-auth
     fi
-    yq -i -r=false '.openid.client_id = strenv(OIDC_CLIENT_ID)
-        | .openid.client_id style="double"
-        | .openid.client_secret = strenv(OIDC_CLIENT_SECRET)
-        | .openid.client_secret style="double"
-        | .openid.configure_url = strenv(OIDC_CONFIGURE_URL)
-        | .openid.configure_url style="double"
-        | .openid.username_field = strenv(OIDC_USERNAME_FIELD)
-        | .openid.username_field style="double"
-        | .openid.scope = strenv(OIDC_SCOPE)
-        | .openid.scope style="double"
-        | .openid.block_login = false
-        | .openid.openid_text = strenv(OIDC_OPENID_TEXT)
-        | .openid.openid_text style="double"
-        | .openid.create_user = env(OIDC_CREATE_USER)
-        | .openid.configure_url style="double"
-        | .openid.block_login = env(OIDC_BLOCK_LOGIN)
-        | .openid.client_id line_comment="OIDC_CLIENT_ID"
-        | .openid.client_secret line_comment="OIDC_CLIENT_SECRET"
-        | .openid.configure_url line_comment="OIDC_CONFIGURE_URL"
-        | .openid.username_field line_comment="OIDC_USERNAME_FIELD"
-        | .openid.scope line_comment="OIDC_SCOPE"
-        | .openid.block_login line_comment="OIDC_BLOCK_LOGIN"
-        | .openid.openid_text line_comment="OIDC_OPENID_TEXT"
-        | .openid.create_user line_comment="OIDC_CREATE_USER"
-        | .openid.validate_tls = false
+    yq -i -r=false '.auth_oidc.client_id = strenv(OIDC_CLIENT_ID)
+        | .auth_oidc.client_id style="double"
+        | .auth_oidc.client_id line_comment="OIDC_CLIENT_ID"
+        | .auth_oidc.discovery_url = strenv(OIDC_CONFIGURE_URL)
+        | .auth_oidc.discovery_url style="double"
+        | .auth_oidc.discovery_url line_comment="OIDC_CONFIGURE_URL"
+        | .auth_oidc.display_name = strenv(OIDC_OPENID_TEXT)
+        | .auth_oidc.display_name style="double"
+        | .auth_oidc.display_name line_comment="OIDC_OPENID_TEXT"
+        | .auth_oidc.network.tls_verify = env(OIDC_VALIDATE_TLS)
+        | .auth_oidc.network.tls_verify line_comment="OIDC_VALIDATE_TLS"
+        | .auth_oidc.network.tls_verify = env(OIDC_VALIDATE_TLS)
+        | .auth_oidc.network.tls_verify line_comment="OIDC_VALIDATE_TLS"
+        | .auth_oidc.claims.username = strenv(OIDC_USERNAME_FIELD)
+        | .auth_oidc.claims.username style="double"
+        | .auth_oidc.claims.username line_comment="OIDC_USERNAME_FIELD"
+        | .auth_oidc.claims.display_name = strenv(OIDC_DISPLAY_NAME)
+        | .auth_oidc.claims.display_name style="double"
+        | .auth_oidc.claims.display_name line_comment="OIDC_DISPLAY_NAME"
+        | .auth_oidc.features.default_redirect = env(OIDC_BLOCK_LOGIN)
+        | .auth_oidc.features.default_redirect line_comment="OIDC_BLOCK_LOGIN"
+        | .auth_oidc.features.automatic_person_creation = env(OIDC_CREATE_USER)
+        | .auth_oidc.features.automatic_person_creation line_comment="OIDC_CREATE_USER"
      ' /config/configuration.yaml
 fi
