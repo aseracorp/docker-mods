@@ -8,20 +8,19 @@ echo "**** Setting up Trusted Proxy ****"
 
 if [ -f /config/configuration.yaml ]; then
     echo "**** found config, add trusted proxy ****"
-    yq -i '.http.use_x_forwarded_for = True | .http.trusted_proxies[0] = strenv(PROXY_HOSTNAME)' /config/configuration.yaml
 else
     echo "**** found NO config, add initial config files + trusted proxy ****"
-    wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/configuration.yaml
+
+    printf 'default_config:\ntts:\n  - platform: google_translate\nfrontend:\n  themes: !include_dir_merge_named themes\nautomation: !include automations.yaml\nscript: !include scripts.yaml\nscene: !include scenes.yaml' > /config/configuration.yaml
+
 fi
-if [ ! -f /config/automations.yaml ]; then
-    echo "**** Missing file automations.yaml, downloading... ****"
-    wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/automations.yaml
+
+if [[ $PROXY_HOSTNAME == "["*"]" ]]; then
+    yq -i '.http.use_x_forwarded_for = true | .http.trusted_proxies = env(PROXY_HOSTNAME) | .http.trusted_proxies style="single"' /config/configuration.yaml
+else
+    yq -i '.http.use_x_forwarded_for = True | .http.trusted_proxies[0] = strenv(PROXY_HOSTNAME)' /config/configuration.yaml
 fi
-if [ ! -f /config/scenes.yaml ]; then
-    echo "**** Missing file scenes.yaml, downloading... ****"
-    wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/scenes.yaml
-fi
-if [ ! -f /config/scripts.yaml ]; then
-    echo "**** Missing file scripts.yaml, downloading... ****"
-    wget --directory-prefix "/config/" https://aseracorp.github.io/resiSTORE/servapps/HomeAssistant/artefacts/scripts.yaml
-fi
+
+touch /config/automations.yaml
+touch /config/scenes.yaml
+touch /config/scripts.yaml
