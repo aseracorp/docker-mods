@@ -1,8 +1,13 @@
 #!/usr/bin/with-contenv bash
 
-### homeassistant-oidc v2.0.0 ###
+### homeassistant-oidc v2.0.2 ###
 
-# Changelog: v2.0.0
+# Changelog:
+# v2.0.2
+# - force version, update files if version does not match
+# v2.0.1
+# - fix css (download release zip instead of git clone master repo)
+# v2.0.0
 # - switch to christiangoosens version, as this one supports automatic setup (secret-less)
 # - update all keys to support new cosmos template with automatic oidc-setup (Cosmos v.0.22.30+)
 
@@ -14,8 +19,9 @@ echo "**** Setting up OIDC-Connection ****"
 
 if [[ -n "${OIDC_CLIENT_ID}" ]]; then
     echo "**** Download and Set up OpenID ****"
-    if [ ! -d "/config/custom_components/auth_oidc" ]; then    
-        wget -O auth_oidc.zip https://github.com/christiaangoossens/hass-oidc-auth/releases/download/v1.1.1/hass-oidc-auth.zip
+    version="1.1.1"
+    if [ ! -d "/config/custom_components/auth_oidc" ] || [ "${version}" != "$(yq '.version' /config/custom_components/auth_oidc/manifest.json --output-format t)" ]; then    
+        wget -O auth_oidc.zip "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/v${version}/hass-oidc-auth.zip"
         rm -R /config/custom_components/auth_oidc
         mkdir -p /config/custom_components/auth_oidc
         unzip auth_oidc.zip -d /config/custom_components/auth_oidc
