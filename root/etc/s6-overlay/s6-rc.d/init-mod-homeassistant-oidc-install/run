@@ -15,10 +15,11 @@ echo "**** Setting up OIDC-Connection ****"
 if [[ -n "${OIDC_CLIENT_ID}" ]]; then
     echo "**** Download and Set up OpenID ****"
     if [ ! -d "/config/custom_components/auth_oidc" ]; then    
-        git clone https://github.com/christiaangoossens/hass-oidc-auth.git
-        mkdir -p /config/custom_components/
-        mv hass-oidc-auth/custom_components/auth_oidc /config/custom_components/
-        rm -R hass-oidc-auth
+        wget -O auth_oidc.zip https://github.com/christiaangoossens/hass-oidc-auth/releases/download/v1.1.1/hass-oidc-auth.zip
+        rm -R /config/custom_components/auth_oidc
+        mkdir -p /config/custom_components/auth_oidc
+        unzip auth_oidc.zip -d /config/custom_components/auth_oidc
+        rm auth_oidc.zip
     fi
     yq -i -r=false '.auth_oidc.client_id = strenv(OIDC_CLIENT_ID)
         | .auth_oidc.client_id style="double"

@@ -5,7 +5,7 @@ if [ -f /usr/bin/apt ]; then
     echo "\
         sed \
         curl \
-        git \
+        unzip \
         jq \
         yq" >> /mod-repo-packages-to-install.list
 
@@ -15,7 +15,7 @@ if [ -f /sbin/apk ]; then
     echo "\
         sed \
         curl \
-        git \
+        unzip \
         jq \
         yq" >> /mod-repo-packages-to-install.list
 fi
