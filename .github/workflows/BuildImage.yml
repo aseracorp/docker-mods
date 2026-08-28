@@ -12,7 +12,7 @@ on:
 env:
   GITHUB_REPO: "aseracorp/docker-mods" #don't modify
   ENDPOINT: "aseracorp/docker-mods" #don't modify
-  BRANCH: "homeassistant-trustedproxy"
+  BRANCH: "homeassistant-trustedproxy-ng"
   BASEIMAGE: "homeassistant" #replace
   MODNAME: "trustedproxy" #replace
   MOD_VERSION: ${{ inputs.mod_version }} #don't modify

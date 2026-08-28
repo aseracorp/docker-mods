@@ -6,21 +6,169 @@
 
 echo "**** Setting up Trusted Proxy ****"
 
-if [ -f /config/configuration.yaml ]; then
-    echo "**** found config, add trusted proxy ****"
-else
-    echo "**** found NO config, add initial config files + trusted proxy ****"
+# ---- Resolve config dir ----
+# Home Assistant (and the linuxserver image) use /config as the config dir.
+# Allow overriding via CONFIG_DIR for custom deployments.
+CONFIG_DIR="${CONFIG_DIR:-/config}"
+CONFIG_YAML="${CONFIG_DIR}/configuration.yaml"
+STORAGE_DIR="${CONFIG_DIR}/.storage"
+STORAGE_HTTP="${STORAGE_DIR}/http"
 
-    printf 'default_config:\ntts:\n  - platform: google_translate\nfrontend:\n  themes: !include_dir_merge_named themes\nautomation: !include automations.yaml\nscript: !include scripts.yaml\nscene: !include scenes.yaml' > /config/configuration.yaml
-
+# ---- Resolve HA version from the installed package ----
+# homeassistant/const.py ships in the venv at
+# /usr/local/lib/python3.x/site-packages/homeassistant/const.py.
+# Parse the numeric core version out of __short_version__ so we can pick a
+# strategy: < 2026.8 uses the legacy configuration.yaml approach, >= 2026.8
+# uses the .storage/http store.
+HA_VERSION_FILE=""
+if command -v python3 >/dev/null 2>&1; then
+  HA_VERSION_FILE="$(python3 -c 'import homeassistant.const as c, pathlib; print(pathlib.Path(c.__file__))' 2>/dev/null)"
+fi
+HA_VERSION=""
+if [ -n "${HA_VERSION_FILE}" ] && [ -f "${HA_VERSION_FILE}" ]; then
+  HA_VERSION="$(sed -n 's/^__short_version__: *Final *= *"\([0-9.]*\)".*/\1/p' "${HA_VERSION_FILE}" | head -n 1)"
+fi
+# Fallback: if parsing failed but the file exists, assume a recent HA (store).
+if [ -z "${HA_VERSION}" ] && [ -n "${HA_VERSION_FILE}" ]; then
+  HA_VERSION="2026.8"
+  echo "**** WARN: could not parse HA version from ${HA_VERSION_FILE}; assuming store-based (>= 2026.8) ****"
 fi
 
-if [[ $PROXY_HOSTNAME == "["*"]" ]]; then
-    yq -i '.http.use_x_forwarded_for = true | .http.trusted_proxies = env(PROXY_HOSTNAME) | .http.trusted_proxies style="single"' /config/configuration.yaml
-else
-    yq -i '.http.use_x_forwarded_for = True | .http.trusted_proxies[0] = strenv(PROXY_HOSTNAME)' /config/configuration.yaml
+version_ge() {
+  # Compare dotted numeric versions a >= b
+  [ "$(printf '%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]
+}
+
+USE_STORE=false
+if [ -n "${HA_VERSION}" ] && version_ge "${HA_VERSION}" "2026.8"; then
+  USE_STORE=true
 fi
 
-touch /config/automations.yaml
-touch /config/scenes.yaml
-touch /config/scripts.yaml
+# ---- Derive trusted proxy list from PROXY_HOSTNAME ----
+# PROXY_HOSTNAME can be either:
+#   - a JSON-ish array:  "['0.0.0.0/0','::/0']"   (python repr, as used by the template)
+#   - a plain string:    "10.0.0.5"
+# Normalize to a JSON array of strings.
+normalize_proxies() {
+  local raw="${1}"
+  if [ -z "${raw}" ]; then
+    echo '["0.0.0.0/0","::/0"]'
+    return
+  fi
+  if [[ "${raw}" == "["*"]" ]]; then
+    # convert python list repr to JSON array of strings
+    local tmp
+    tmp="$(printf '%s' "${raw}" | sed "s/'/\"/g")"
+    local out
+    out="$(printf '%s\n' "${tmp}" | jq -c 'if type == "array" then map(tostring) else [tostring] end' 2>/dev/null)"
+    if [ -z "${out}" ]; then
+      out="$(printf '%s\n' "${tmp}" | jq -c 'map(tostring)' 2>/dev/null)"
+    fi
+    if [ -n "${out}" ]; then
+      printf '%s\n' "${out}"
+      return
+    fi
+    echo '["0.0.0.0/0","::/0"]'
+  else
+    printf '["%s"]\n' "${raw}" | jq -c .
+  fi
+}
+
+PROXIES_JSON="$(normalize_proxies "${PROXY_HOSTNAME}")"
+
+# ---- Shared storage payload ----
+# This is the exact shape Home Assistant writes to .storage/http
+# (Store schema version 2, minor 2). trusted_proxies are CIDR networks.
+build_http_store() {
+  jq -n \
+    --argjson proxies "${PROXIES_JSON}" \
+    '{
+      version: 2,
+      minor_version: 2,
+      key: "http",
+      data: {
+        stable: {
+          server_host: ["0.0.0.0", "::"],
+          server_port: 8123,
+          cors_allowed_origins: ["https://cast.home-assistant.io"],
+          use_x_forwarded_for: true,
+          trusted_proxies: $proxies,
+          login_attempts_threshold: -1,
+          ip_ban_enabled: true,
+          ssl_profile: "modern",
+          use_x_frame_options: true,
+          created_at: (now | todateiso8601)
+        },
+        pending: null,
+        yaml_migration_done: true
+      }
+    }'
+}
+
+# ---- Ensure the base config files exist (like the old mod did) ----
+if [ ! -f "${CONFIG_YAML}" ]; then
+  echo "**** found NO config, add initial config files ****"
+  printf 'default_config:\ntts:\n  - platform: google_translate\nfrontend:\n  themes: !include_dir_merge_named themes\nautomation: !include automations.yaml\nscript: !include scripts.yaml\nscene: !include scenes.yaml' > "${CONFIG_YAML}"
+fi
+touch "${CONFIG_DIR}/automations.yaml" "${CONFIG_DIR}/scenes.yaml" "${CONFIG_DIR}/scripts.yaml"
+
+if [ "${USE_STORE}" = "true" ]; then
+  # ------------------------------------------------------------------
+  # Home Assistant >= 2026.8: HTTP settings live in .storage/http.
+  # Re-injecting an http: block into configuration.yaml no longer works
+  # (removed in 2027.2), so write the store instead. Only do this when
+  # the store does not exist yet (first boot / fresh volume): if the
+  # user has already configured HA, never overwrite their settings.
+  # ------------------------------------------------------------------
+  if [ -f "${STORAGE_HTTP}" ]; then
+    echo "**** .storage/http already exists - leaving existing HTTP configuration untouched ****"
+  else
+    echo "**** writing trusted proxy configuration to ${STORAGE_HTTP} ****"
+    mkdir -p "${STORAGE_DIR}"
+    build_http_store > "${STORAGE_HTTP}"
+    # The linuxserver image runs HA as the abc user (PUID/PGID). Match
+    # ownership of the config dir so HA can read/write the store.
+    if id abc >/dev/null 2>&1; then
+      chown -R abc:abc "${STORAGE_DIR}" 2>/dev/null || true
+    fi
+  fi
+
+  # On a fresh install, if the legacy mod left an http: block in
+  # configuration.yaml, remove it: on >= 2026.8 the block is either already
+  # imported (should be removed to silence the repair) or ignored entirely
+  # from 2027.2. Only touch the file when it carries trusted_proxies so we
+  # never delete something the user wrote themselves.
+  if [ -f "${CONFIG_YAML}" ] && grep -q '^http:' "${CONFIG_YAML}" && grep -q 'trusted_proxies' "${CONFIG_YAML}"; then
+    echo "**** removing legacy http: block from configuration.yaml (managed via .storage now) ****"
+    yq -i 'del(.http)' "${CONFIG_YAML}" 2>/dev/null || sed -i '/^http:/,/^[a-z]/d' "${CONFIG_YAML}"
+  fi
+
+else
+  # ------------------------------------------------------------------
+  # Home Assistant < 2026.8: legacy YAML-based http: configuration.
+  # ------------------------------------------------------------------
+  if command -v yq >/dev/null 2>&1; then
+    if [[ "${PROXY_HOSTNAME}" == "["*"]" ]]; then
+      yq -i '.http.use_x_forwarded_for = true | .http.trusted_proxies = env(PROXY_HOSTNAME) | .http.trusted_proxies style="single"' "${CONFIG_YAML}"
+    else
+      yq -i '.http.use_x_forwarded_for = True | .http.trusted_proxies[0] = strenv(PROXY_HOSTNAME)' "${CONFIG_YAML}"
+    fi
+    echo "**** configured trusted proxy via configuration.yaml (legacy HA < 2026.8) ****"
+  else
+    # yq missing (should not happen: the add-package init installs it, but be
+    # defensive). Write a minimal http: block with sed.
+    echo "**** WARN: yq not available; writing minimal http: block with sed ****"
+    if ! grep -q '^http:' "${CONFIG_YAML}"; then
+      printf '\nhttp:\n  use_x_forwarded_for: true\n  trusted_proxies:\n' >> "${CONFIG_YAML}"
+      if [[ "${PROXY_HOSTNAME}" == "["*"]" ]]; then
+        for p in $(printf '%s' "${PROXY_HOSTNAME}" | tr -d "[]'" | tr ',' ' '); do
+          printf '  - %s\n' "${p}" >> "${CONFIG_YAML}"
+        done
+      else
+        printf '  - %s\n' "${PROXY_HOSTNAME}" >> "${CONFIG_YAML}"
+      fi
+    fi
+  fi
+fi
+
+echo "**** Trusted Proxy setup complete ****"
