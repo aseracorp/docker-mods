@@ -22,13 +22,13 @@ either a single IP/CIDR (e.g. `10.0.0.5`) or a Python-style list
 In the Home Assistant docker arguments, set an environment variable:
 
 ```bash
-DOCKER_MODS=aseracorp/docker-mods:homeassistant-trustedproxy-ng
+DOCKER_MODS=aseracorp/docker-mods:homeassistant-trustedproxy
 ```
 
 If adding multiple mods, enter them in an array separated by `|`:
 
 ```bash
-DOCKER_MODS=linuxserver/mods:homeassistant-hacs|aseracorp/docker-mods:homeassistant-trustedproxy-ng
+DOCKER_MODS=linuxserver/mods:homeassistant-hacs|aseracorp/docker-mods:homeassistant-trustedproxy
 ```
 
 ## Notes
@@ -38,5 +38,5 @@ DOCKER_MODS=linuxserver/mods:homeassistant-hacs|aseracorp/docker-mods:homeassist
   settings are never overwritten.
 - `PROXY_HOSTNAME` values are written as CIDR networks. Use network addresses, not
   host addresses, for masked entries (e.g. `192.168.1.0/24`, not `192.168.1.50/24`).
-- The old tag `homeassistant-trustedproxy` (legacy) keeps the YAML-only behavior for
-  pre-2026.8 setups; use `homeassistant-trustedproxy-ng` for new installs.
+- The legacy tag `homeassistant-trustedproxy-legacy` keeps the YAML-only behavior for
+  pre-2026.8 setups; use `homeassistant-trustedproxy` for new installs.
