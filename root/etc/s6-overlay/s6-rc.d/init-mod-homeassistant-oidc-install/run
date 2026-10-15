@@ -1,8 +1,11 @@
 #!/usr/bin/with-contenv bash
 
-### homeassistant-oidc v2.0.2 ###
+### homeassistant-oidc v2.0.3 ###
 
 # Changelog:
+# v2.0.3
+# - fix first-boot hang: create /config/configuration.yaml if missing so the
+#   yq step cannot fail when the trustedproxy mod runs in parallel
 # v2.0.2
 # - force version, update files if version does not match
 # v2.0.1
@@ -20,12 +23,19 @@ echo "**** Setting up OIDC-Connection ****"
 if [[ -n "${OIDC_CLIENT_ID}" ]]; then
     echo "**** Download and Set up OpenID ****"
     version="1.1.1"
-    if [ ! -d "/config/custom_components/auth_oidc" ] || [ "${version}" != "$(yq '.version' /config/custom_components/auth_oidc/manifest.json --output-format t)" ]; then    
+    if [ ! -d "/config/custom_components/auth_oidc" ] || [ "${version}" != "$(yq '.version' /config/custom_components/auth_oidc/manifest.json --output-format t)" ]; then
         wget -O auth_oidc.zip "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/v${version}/hass-oidc-auth.zip"
         rm -R /config/custom_components/auth_oidc
         mkdir -p /config/custom_components/auth_oidc
         unzip auth_oidc.zip -d /config/custom_components/auth_oidc
         rm auth_oidc.zip
+    fi
+    # On a fresh install the trustedproxy mod may create configuration.yaml
+    # concurrently; make sure the file exists before yq edits it so this oneshot
+    # can never exit non-zero (a failed oneshot prevents HA from starting).
+    if [ ! -f /config/configuration.yaml ]; then
+        echo "**** creating /config/configuration.yaml (missing on first boot) ****"
+        printf 'default_config:\ntts:\n  - platform: google_translate\nfrontend:\n' > /config/configuration.yaml
     fi
     yq -i -r=false '.auth_oidc.client_id = strenv(OIDC_CLIENT_ID)
         | .auth_oidc.client_id style="double"
