@@ -1,15 +1,15 @@
 #!/usr/bin/with-contenv bash
 
-## Ubuntu
+## jq is already shipped by the linuxserver baseimages (package_versions.txt).
+## Requesting it here is harmless and keeps the mod portable to non-LS bases.
+## NOTE: do NOT add `yq` - it is not an Alpine package (edge/v3.22/v3.23/v3.24),
+## and `apk add` is atomic, so an unresolvable name aborts the transaction and
+## jq would not be installed either. This mod edits YAML with python3
+## (Home Assistant ships PyYAML), so no yq is needed.
 if [ -f /usr/bin/apt ]; then
-    echo "\
-        jq \
-        yq" >> /mod-repo-packages-to-install.list
-
+    echo "jq" >> /mod-repo-packages-to-install.list
 fi
 # Alpine
 if [ -f /sbin/apk ]; then
-    echo "\
-        jq \
-        yq" >> /mod-repo-packages-to-install.list
+    echo "jq" >> /mod-repo-packages-to-install.list
 fi
